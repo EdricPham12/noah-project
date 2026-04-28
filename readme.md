@@ -1,77 +1,70 @@
-# NOAH PROJECT – RUN GUIDE
+# NOAH PROJECT - MODULE 4: SECURITY GATEWAY
 
-## 1. Clone project
-git clone <link_repo>
-cd GR_PJ
+Muc tieu module nay la an toan bo service ben duoi va chi mo mot cong duy nhat:
 
-## 2. Cài thư viện Python
-pip install flask pymysql pika psycopg2-binary cryptography
+- Gateway: `http://localhost:8000`
+- Order API: chi chay noi bo trong Docker network, khong expose `5000`
+- Report Service: chi chay noi bo trong Docker network, khong expose `5001`
 
-## 3. Chạy RabbitMQ (Docker)
-docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:3-management
+## Chay project
 
-RabbitMQ UI:
-http://localhost:15672
-user: guest
-pass: guest
+```powershell
+docker compose up -d --build
+```
 
-## 4. Chạy PostgreSQL (Docker)
-docker run -d --name postgres -e POSTGRES_PASSWORD=123456 -p 5432:5432 postgres
+## Gateway routes
 
-## 5. Setup PostgreSQL
-docker exec -it postgres psql -U postgres
+Tat ca request phai gui header:
 
-CREATE DATABASE noah_finance;
-\c noah_finance
+```text
+apikey: noah-secret-key
+```
 
-CREATE TABLE transactions (
-    id SERIAL PRIMARY KEY,
-    order_id INT,
-    user_id INT,
-    product_id INT,
-    quantity INT,
-    total_price DECIMAL(10,2),
-    status VARCHAR(50),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+### Orders
 
-\q
+```powershell
+curl.exe -H "apikey: noah-secret-key" http://localhost:8000/orders
+```
 
-## 6. Setup MySQL
-Mở MySQL Workbench → chạy file init.sql
+Tao order:
 
-## 7. Chạy API
-py order_api/app.py
+```powershell
+python -c "import json, urllib.request; data=json.dumps({'user_id':2,'product_id':102,'quantity':1}).encode(); req=urllib.request.Request('http://localhost:8000/orders', data=data, headers={'Content-Type':'application/json','apikey':'noah-secret-key'}, method='POST'); res=urllib.request.urlopen(req); print(res.status); print(res.read().decode())"
+```
 
-## 8. Chạy Worker
-py order_worker/worker.py
+### Report
 
-## 9. Test API (Postman)
-POST http://localhost:5000/api/orders
+```powershell
+curl.exe -H "apikey: noah-secret-key" http://localhost:8000/report
+```
 
-Body:
-{
-  "user_id": 2,
-  "product_id": 102,
-  "quantity": 1
-}
+## Kiem tra bao mat
 
-## 10. Kiểm tra kết quả
+Khong co API key se bi chan:
 
-MySQL:
-SELECT * FROM orders;
+```powershell
+curl.exe -i http://localhost:8000/orders
+```
 
-→ status = COMPLETED
+Goi truc tiep service se khong duoc vi `docker-compose.yml` khong expose port `5000`:
 
-PostgreSQL:
-SELECT * FROM transactions;
+```powershell
+curl.exe -i http://localhost:5000/orders
+```
 
-→ có dữ liệu mới
+Chi Kong co `ports`:
 
-## DONE
-API → RabbitMQ → Worker → DB hoạt động OK
+```yaml
+ports:
+  - "8000:8000"
+```
 
-## NOTE
-- MySQL database: init
-- PostgreSQL database: noah_finance
-- Không đổi password nếu không sửa code
+## Cau hinh Kong
+
+File `kong.yml` dang cau hinh:
+
+- `/orders` -> `order-api:5000`
+- `/report` -> `report-service:5001`
+- Key Authentication voi key `noah-secret-key`
+- Rate Limiting: 10 request/phut moi consumer
+- CORS: bat san cho frontend

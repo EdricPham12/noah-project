@@ -1,0 +1,94 @@
+name: noah-project-module-4
+
+services:
+  kong:
+    image: kong:3.7
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /kong/declarative/kong.yml
+      KONG_ADMIN_LISTEN: "off"
+      KONG_PROXY_LISTEN: "0.0.0.0:8000"
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./kong.yml:/kong/declarative/kong.yml:ro
+    depends_on:
+      - order-api
+      - report-service
+
+  order-api:
+    build:
+      context: ./order_api
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_USER: root
+      MYSQL_PASSWORD: 0905632186aA
+      MYSQL_DATABASE: init
+      RABBITMQ_HOST: rabbitmq
+      PORT: 5000
+    expose:
+      - "5000"
+    depends_on:
+      - mysql
+      - rabbitmq
+
+  report-service:
+    build:
+      context: ./report_service
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_DATABASE: noah_finance
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123456
+      PORT: 5001
+    expose:
+      - "5001"
+    depends_on:
+      - postgres
+
+  order-worker:
+    build:
+      context: ./order_worker
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_USER: root
+      MYSQL_PASSWORD: 0905632186aA
+      MYSQL_DATABASE: init
+      POSTGRES_HOST: postgres
+      POSTGRES_DATABASE: noah_finance
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123456
+      RABBITMQ_HOST: rabbitmq
+    depends_on:
+      - mysql
+      - postgres
+      - rabbitmq
+
+  mysql:
+    image: mysql:8.0
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_ROOT_PASSWORD: 0905632186aA
+      MYSQL_DATABASE: init
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - "./database/init .sql:/docker-entrypoint-initdb.d/init.sql:ro"
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: noah_finance
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123456
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/postgres_init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+  rabbitmq:
+    image: rabbitmq:3-management
+
+volumes:
+  mysql_data:
+  postgres_data:
