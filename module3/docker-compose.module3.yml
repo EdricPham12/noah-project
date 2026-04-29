@@ -1,0 +1,50 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: noah_store
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./sql:/docker-entrypoint-initdb.d
+
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: noah_finance
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  report-service:
+    build: ./report_service
+    container_name: report-service
+    environment:
+      MYSQL_URL: mysql+pymysql://root:root@mysql:3306/noah_store
+      POSTGRES_URL: postgresql+psycopg2://postgres:postgres@postgres:5432/noah_finance
+    ports:
+      - "7000:7000"
+    depends_on:
+      - mysql
+      - postgres
+
+  dashboard:
+    build: ./dashboard
+    container_name: dashboard
+    environment:
+      REPORT_API_URL: http://report-service:7000
+    ports:
+      - "8501:8501"
+    depends_on:
+      - report-service
+
+volumes:
+  mysql_data:
+  postgres_data:
